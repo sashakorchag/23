@@ -6,14 +6,15 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/OpenAI/uuid"
 )
 
 // Define the Task struct
 type Task struct {
-	ID          string   `json:"id"`          // ID задачи
-	Description string   `json:"description"` // Заголовок
-	Note        string   `json:"note"`        // Описание задачи
-	Application []string `json:"application"` // Приложения, которыми будете пользоваться
+	ID          string   `json:"id"`             // ID задачи
+	Description string   `json:"description"`    // Заголовок
+	Note        string   `json:"note"`           // Описание задачи
+	Application []string `json:"application"`    // Приложения, которыми будете пользоваться
 }
 
 // Global variable to store tasks
@@ -42,7 +43,7 @@ var tasks = map[string]Task{
 }
 
 // Handler to get all tasks
-func getAllTasks(w http.ResponseWriter, r *http.Request) {
+func getTasks(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(tasks)
 }
@@ -56,14 +57,22 @@ func createTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newTask.ID = fmt.Sprintf("%d", len(tasks)+1) // Generate a new ID
+	// Validate if the task ID already exists
+	if _, exists := tasks[newTask.ID]; exists {
+		http.Error(w, "Task with this ID already exists", http.StatusBadRequest)
+		return
+	}
+
+	// Generate a UUID for the new task ID
+	newTask.ID = uuid.New().String() 
+
 	tasks[newTask.ID] = newTask
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(newTask)
 }
 
 // Handler to get a task by ID
-func getTaskByID(w http.ResponseWriter, r *http.Request) {
+func getTask(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "id")
 	task, found := tasks[taskID]
 	if !found {
@@ -75,7 +84,7 @@ func getTaskByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // Handler to delete a task by ID
-func deleteTaskByID(w http.ResponseWriter, r *http.Request) {
+func deleteTask(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "id")
 	_, found := tasks[taskID]
 	if !found {
@@ -90,14 +99,13 @@ func main() {
 	r := chi.NewRouter()
 
 	// Register handlers for endpoints
-	r.Get("/tasks", getAllTasks)
+	r.Get("/tasks", getTasks)
 	r.Post("/tasks", createTask)
-	r.Get("/tasks/{id}", getTaskByID)
-	r.Delete("/tasks/{id}", deleteTaskByID)
+	r.Get("/tasks/{id}", getTask)
+	r.Delete("/tasks/{id}", deleteTask)
 
 	// Start the server
 	if err := http.ListenAndServe(":8080", r); err != nil {
 		fmt.Printf("Ошибка при запуске сервера: %s", err.Error())
 		return
 	}
-}
